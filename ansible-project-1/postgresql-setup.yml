@@ -4,23 +4,46 @@
   become: yes
 
   vars:
-    postgresql_version: "14"
+    postgresql_version: "15"
     postgresql_user: "myuser"
     postgresql_password: "mypassword"
     postgresql_db: "mydatabase"
 
   tasks:
+    - name: Add PostgreSQL GPG key
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
+      tags: postgresql
+
+    - name: Add PostgreSQL APT repository
+      apt_repository:
+        repo: "deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
+        state: present
+        filename: "pgdg.list"
+      tags: postgresql
+
+    - name: Update apt cache after adding PostgreSQL repository
+      apt:
+        update_cache: yes
+      tags: postgresql
+
     - name: Ensure PostgreSQL is installed with required dependencies
       apt:
         name: "postgresql-{{ postgresql_version }}"
         state: present
       tags: postgresql
 
-    - name: Install PostgreSQL contrib (optional, useful extensions)
+    - name: Install PostgreSQL contrib
       apt:
-        name: "postgresql-contrib-{{ postgresql_version }}"
+        name: "postgresql-contrib"
         state: present
       tags: postgresql
+
+    - name: Install psycopg2
+      apt:
+        name: "python3-psycopg2"
+        state: present
 
     - name: Ensure PostgreSQL service is running and enabled on boot
       service:

@@ -1,0 +1,37 @@
+---
+- name: Undo PostgreSQL setup and clean up
+  hosts: all
+  become: yes
+
+  vars:
+    postgresql_version: "15"
+    
+  tasks:
+    # Step 1: Remove PostgreSQL package and dependencies
+    - name: Uninstall PostgreSQL and psycopg2
+      apt:
+        name:
+          - "postgresql-{{ postgresql_version }}"  # Remove PostgreSQL
+          - "python3-psycopg2"                     # Remove psycopg2
+        state: absent
+
+    # Step 2: Remove PostgreSQL GPG key
+    - name: Remove PostgreSQL GPG key
+      apt_key:
+        id: "ACCC4CF8"
+        state: absent
+      tags: postgresql
+
+    # Step 3: Remove PostgreSQL APT repository
+    - name: Remove PostgreSQL APT repository
+      apt_repository:
+        repo: "deb http://apt.postgresql.org/pub/repos/apt/ {{ ansible_distribution_release }}-pgdg main"
+        state: absent
+        filename: "pgdg.list"
+      tags: postgresql
+
+    # Step 4: Clean up apt cache
+    - name: Clean up apt cache
+      apt:
+        autoclean: yes
+        autoremove: yes
