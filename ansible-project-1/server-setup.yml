@@ -1,0 +1,91 @@
+---
+- hosts: all
+  become: yes  # use sudo for all tasks
+
+  vars:
+    server_name: "ozierski.pl"  # domain / IP
+    app_name: "myapp"           # custom app name for config
+    app_root: "/var/www/myapp"  # root directory of app
+    email: "jakub@ozierski.pl"  # email for Let's Encrypt registration
+
+    user_groups:
+      - name: "sudo"
+        gid: 1001
+      - name: "docker"
+        gid: 1002
+
+  tasks:
+    - name: Create user groups
+      group:
+        name: "{{ item.name }}"
+        gid: "{{ item.gid }}"
+        state: present
+      loop: "{{ user_groups }}"
+
+    - name: Create user developer
+      user:
+        name: developer       # username
+        password: '$6$BGn2nlhZuJOZDiBc$CGQxlIXO9xVzJWfjg10A3VoyifwFR8FaWj2yNRytGoRz7geXJ4ooBHS95LYYzi5HcAghj1lzhnqiqIVZaIG180'  # sha-512 hashed pswd 'password'
+        groups:               # secondary groups assignment
+          - sudo
+          - docker
+        state: present        # present - user should exist
+        shell: /bin/bash      # default
+        system: no            # default - if yes no shell or home dir will be made by default
+        createhome: yes       # default
+        home: /home/developer # default
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+        update_cache: yes
+
+    - name: Ensure Nginx is running and enabled on boot
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Install UFW
+      apt:
+        name: ufw
+        state: present
+
+    - name: Allow HTTP and HTTPS traffic, as well as SSH in UFW
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - 80
+        - 443
+        - 22
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        direction: in
+
+    - name: Copy custom Nginx configuration for the app
+      template:
+        src: nginx-app.j2
+        dest: /etc/nginx/sites-available/{{ app_name }}
+      notify: restart nginx
+
+    - name: Enable custom Nginx config by creating symlink
+      file:
+        src: /etc/nginx/sites-available/{{ app_name }}
+        dest: /etc/nginx/sites-enabled/{{ app_name }}
+        state: link
+
+    - name: Remove default Nginx config (optional)
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+  handlers:
+    - name: restart nginx
+      service:
+        name: nginx
+        state: restarted
